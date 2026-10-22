@@ -1,0 +1,51 @@
+---
+title: How KwesPay works
+description: The payment flow from quote to confirmed status, the trust model behind it, and which system is responsible for each step.
+sidebar:
+  order: 2
+---
+
+import PaymentSequence from '../../../components/PaymentSequence.astro';
+
+Every KwesPay payment follows the same sequence on every supported chain. Your integration asks for a quote, the KwesPay API signs the terms, the customer's wallet submits the transaction, the contract verifies and settles it, and the KwesPay API records the result.
+
+<PaymentSequence />
+
+## The steps
+
+1. **Create a quote.** Your app calls [`createQuote`](/api/operations/create-quote/) with the merchant's vendor ID, a fiat amount and currency, a token and a network. The API converts the fiat amount at current rates into base units of the token and returns `amountBaseUnits`, `totalBaseUnits` (amount plus fee) and an expiry 10 minutes ahead.
+2. **Create the transaction.** Your app calls [`createTransaction`](/api/operations/create-transaction/) with the quote ID and the payer's wallet address. The API marks the quote as used, generates a payment ID and signs the payment terms for the target contract. It returns the signature, the deadline, the contract address and a `transactionReference` you keep for later. The transaction expires after 15 minutes.
+3. **Pay.** The customer's wallet submits the signed terms to the payment contract. On EVM networks this can include an ERC-20 approval first. The SDK and widget handle this step.
+4. **Settle on-chain.** The contract checks the KwesPay signature, the deadline, that the payment ID is unused and that the merchant is active. It then transfers the merchant amount to the merchant's wallet and the fee to KwesPay's fee address in the same transaction, and emits a payment event.
+5. **Report the hash.** The SDK calls [`submitTransactionHash`](/api/operations/submit-transaction-hash/) as soon as the wallet broadcasts. The status moves to `processing` and, on EVM networks, the API checks the receipt straight away.
+6. **Confirm.** KwesPay's chain listeners read the payment event, compare the amount paid with the quote and set the final status: `completed`, `underpaid` or `overpaid`. You read it with [`getTransactionStatus`](/api/operations/get-transaction-status/).
+
+## The trust model
+
+| Decision | Made by | Enforced by |
+| --- | --- | --- |
+| Token amount for a fiat price | KwesPay API | Signature checked by the contract |
+| Receiving merchant | KwesPay API, from the merchant's registered wallet | Signature and the contract's vendor registry |
+| Token and network | KwesPay API | Signature and the contract's token allowlist |
+| Platform fee | Contract configuration, mirrored by the API | Contract computes and transfers it |
+| Deadline | KwesPay API | Contract rejects expired signatures |
+| Final payment status | KwesPay listeners and reconciler | Only chain-verified data can set `completed`, `underpaid` or `overpaid` |
+
+Clients such as the widget, the SDK or your own frontend never set payment terms. If a client changes any signed value, the signature no longer matches and the contract rejects the transaction.
+
+## Who is responsible for what
+
+**Your application** chooses the fiat price, asks for a quote, passes the customer's wallet to the SDK or widget, and fulfils the order only after it has read a final status from KwesPay.
+
+**The KwesPay API** prices the quote, signs the terms, records the transaction, and watches each chain to record what was actually paid.
+
+**The customer's wallet** holds the customer's keys, asks the customer to approve, and submits the transaction. KwesPay never sees a private key.
+
+**The payment contract** is the only component that moves funds. It sends the merchant's share directly to the merchant's wallet.
+
+## Non-custodial by design
+
+- Funds move from the customer's wallet to the merchant's wallet in a single on-chain transaction. KwesPay never holds them, so there is nothing to withdraw and no balance at risk.
+- The merchant receives the token the customer paid with, priced from the fiat amount at the moment of the quote.
+
+Read [Settlement](/merchants/settlement/) for what the merchant receives and when.

@@ -1,0 +1,193 @@
+---
+title: JavaScript SDK
+description: Build your own checkout with @kwespay/client. One checkout() call prices, signs, pays and confirms, and verifyPayment() confirms orders on your server.
+sidebar:
+  order: 3
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+`@kwespay/client` is for checkouts with your own design. You bring the interface and the customer's wallet. The SDK prices the payment, gets the terms signed by KwesPay, drives the wallet through approval and payment, and waits for on-chain confirmation.
+
+The SDK never sees a private key. Every signature is requested from the wallet, which asks the customer to approve it.
+
+## Install
+
+```sh
+npm install @kwespay/client
+```
+
+The package is ESM and runs in browsers through a bundler such as Vite, webpack or Next.js, and in Node.js 18 or later.
+
+```ts
+import { KwesPayClient } from "@kwespay/client";
+
+const kwespay = new KwesPayClient({ apiKey: "YOUR_API_KEY" });
+```
+
+The client uses the mainnet API. For testing, add `graphqlEndpoint: "https://api.testnet.kwespay.xyz/graphql"`.
+
+## Take a payment
+
+`checkout()` runs the whole payment and resolves once KwesPay has a final status.
+
+<Tabs syncKey="chain">
+<TabItem label="EVM">
+
+```ts
+const result = await kwespay.checkout({
+  amount: 25,
+  currency: "USD",
+  token: "USDC",
+  network: "base",
+  orderId: "A-1042",
+  provider: window.ethereum,
+});
+```
+
+`provider` is any [EIP-1193](https://eips.ethereum.org/EIPS/eip-1193) provider: an injected wallet, or one from wagmi, RainbowKit or WalletConnect. The SDK switches the wallet to the right chain, checks the balance, requests a token approval for exactly the payment total when needed, then sends the payment.
+
+</TabItem>
+<TabItem label="Stellar">
+
+```ts
+import { requestAccess, signTransaction } from "@stellar/freighter-api";
+import { Networks } from "@stellar/stellar-sdk";
+
+const { address } = await requestAccess();
+const wallet = {
+  getAddress: async () => ({ address }),
+  signTransaction: (xdr: string) =>
+    signTransaction(xdr, { networkPassphrase: Networks.PUBLIC, address }),
+};
+
+const result = await kwespay.checkout({
+  amount: 50,
+  currency: "GHS",
+  token: "USDC",
+  network: "stellarMainnet",
+  orderId: "A-1042",
+  wallet,
+});
+```
+
+The wallet adapter needs `getAddress()` and `signTransaction(xdr)`. Freighter's API fits directly. Use `Networks.TESTNET` with `stellarTestnet`.
+
+</TabItem>
+<TabItem label="Sui">
+
+```ts
+const result = await kwespay.checkout({
+  amount: 10,
+  currency: "USD",
+  token: "SUI",
+  network: "suiTestnet",
+  wallet: suiWallet,
+});
+```
+
+`suiWallet` implements `connect()` and `signAndExecuteTransactionBlock()`, as described in [`SuiWalletAdapter`](/sdk/types/#wallet-adapters). Sui payments are available on `suiTestnet` only.
+
+</TabItem>
+<TabItem label="NEAR">
+
+```ts
+import { setupWalletSelector, internalActionToNaj } from "@near-wallet-selector/core";
+import { setupMeteorWallet } from "@near-wallet-selector/meteor-wallet";
+
+const selector = await setupWalletSelector({ network: "testnet", modules: [setupMeteorWallet()] });
+const near = await selector.wallet("meteor-wallet");
+const [{ accountId }] = await near.signIn({ contractId: "pay.kwespay.testnet", methodNames: [] });
+
+const wallet = {
+  getAccounts: async () => [{ accountId }],
+  signAndSendTransaction: (tx) =>
+    near.signAndSendTransaction({ ...tx, actions: tx.actions.map(internalActionToNaj) }),
+};
+
+const result = await kwespay.checkout({
+  amount: 50,
+  currency: "GHS",
+  token: "USDT",
+  network: "nearTestnet",
+  orderId: "A-1042",
+  wallet,
+});
+```
+
+Requires 0.1.28. Native NEAR is paid with `pay_near` and tokens with `ft_transfer_call`. The payment is signed for the connected account, so the customer must pay from that account. NEAR payments are available on `nearTestnet` only.
+
+</TabItem>
+</Tabs>
+
+```ts
+{
+  paid: boolean;
+  status: "completed" | "underpaid" | "overpaid" | "failed" | "expired" | "refunded" | "processing";
+  transactionReference: string;
+  txHash: string;
+  orderId: string | null;
+  network: string;
+  token: string;
+  cryptoAmount: number;
+}
+```
+
+Use `paid` to show the customer the outcome. Then send `transactionReference` to your server and confirm the order with [`verifyPayment()`](/guides/payment-confirmation/), because code running in the browser can be altered.
+
+## Offer only what the merchant accepts
+
+Build your network and token pickers from the merchant's configuration, so customers never choose a combination that will be rejected.
+
+```ts
+const config = await kwespay.getMerchantConfig("YOUR_VENDOR_ID");
+
+for (const { network, tokens, family } of config.networkTokenMap) {
+  console.log(network, family, tokens.join(", "));
+}
+```
+
+`family` is `"evm"`, `"sui"`, `"stellar"` or `"near"` and tells you which wallet to ask for. For the full list of networks, contracts and tokens the API offers, call [`getNetworks()`](/sdk/methods/#getnetworks).
+
+## Show progress
+
+Pass `onStatus(title, detail)` to `checkout()` or `pay()`. Show `title` as the step and `detail` as supporting text.
+
+| Title | When |
+| --- | --- |
+| `Getting quote` | Pricing the payment |
+| `Connecting wallet` | Reading the Sui wallet address |
+| `Checking balance` | Checking the payer has enough funds |
+| `Switching network` | Asking an EVM wallet to change chain |
+| `Checking approval` | Reading the ERC-20 allowance |
+| `Approve token` | Waiting for the customer to approve the token |
+| `Waiting for approval` | The approval transaction is confirming |
+| `Confirm payment` | Waiting for the customer to approve the payment |
+| `Waiting for confirmation` | The payment transaction is confirming |
+| `Confirming payment` | Waiting for KwesPay to confirm the payment |
+
+## Step by step
+
+`checkout()` is built from smaller methods you can call yourself, for example to show the price before the customer connects a wallet.
+
+```ts
+const quote = await kwespay.getQuote({
+  fiatAmount: 25,
+  fiatCurrency: "USD",
+  cryptoCurrency: "USDC",
+  network: "base",
+  orderId: "A-1042",
+});
+
+const payload = await kwespay.createTransaction({ quote, payerWalletAddress: address });
+const payment = await kwespay.pay({ provider: window.ethereum, payload, onStatus });
+const status = await kwespay.pollTransactionStatus(payment.transactionReference);
+```
+
+`quote()` combines `getQuote()` and `createTransaction()`. A quote is valid for 10 minutes and can be used once.
+
+## Related
+
+- [`KwesPayClient` methods](/sdk/methods/)
+- [Types](/sdk/types/)
+- [Error codes](/sdk/errors/)

@@ -1,0 +1,183 @@
+---
+title: Checkout widget
+description: Add KwesPay checkout to any page with an HTML embed or one kwespay() call, bind payments to orders, and handle results and events without leaving the page.
+sidebar:
+  order: 2
+---
+
+import WidgetPlayground from '../../../components/WidgetPlayground.astro';
+
+`@kwespay/widget` opens a payment modal over your page. It reads which networks and tokens the merchant accepts, connects the customer's wallet (browser extensions, mobile wallets through WalletConnect, Stellar and Sui wallets), shows the live price and fee, and waits until KwesPay confirms the payment on-chain.
+
+<WidgetPlayground />
+
+## HTML embed
+
+Paste the script tag once, with the API key from **API Keys** in your dashboard. Then mark any button with an amount. No JavaScript is needed.
+
+```html
+<script
+  type="module"
+  src="https://cdn.jsdelivr.net/npm/@kwespay/widget@1.1.0/dist/browser/kwespay-widget.js"
+  data-kwespay-key="YOUR_API_KEY"
+></script>
+
+<button data-kwespay-amount="49.99" data-kwespay-currency="USD" data-kwespay-order="A-1042">
+  Pay with crypto
+</button>
+```
+
+| Attribute | Where | Description |
+| --- | --- | --- |
+| `data-kwespay-key` | Script tag | Your API key. Required |
+| `data-kwespay-vendor` | Script tag | Vendor ID. Only needed when the key can access more than one merchant |
+| `data-kwespay-environment` | Script tag | `testnet` for testing. Defaults to mainnet |
+| `data-kwespay-currency` | Script tag or button | Default `USD` |
+| `data-kwespay-tokens` | Script tag or button | `stablecoins`, or a comma-separated list such as `USDC,USDT` |
+| `data-kwespay-amount` | Button | Price in fiat. Required |
+| `data-kwespay-order` | Button | Your order ID |
+
+The key, vendor and environment are read only from the script tag, never from the button. Content that someone else can post on your site, such as comments, cannot change who gets paid.
+
+The customer never leaves your page. When KwesPay confirms the payment, the widget shows a receipt and closes. To react on the page, listen for the button's events:
+
+```html
+<script>
+  document.addEventListener("kwespay:result", (event) => {
+    const { transactionStatus, transactionReference, orderId } = event.detail;
+    if (transactionStatus === "completed") showThankYou(orderId);
+  });
+</script>
+```
+
+`kwespay:result` carries the payment result and `kwespay:error` carries `{ code, message }`. The button has `aria-busy="true"` while checkout is open. Events run in the customer's browser, so they only update the page. Fulfil orders from a [webhook](/guides/webhooks/) or a [`verifyPayment`](/guides/payment-confirmation/) call on your server.
+
+## Add it with JavaScript
+
+```sh
+npm install @kwespay/widget
+```
+
+```js
+import { kwespay } from "@kwespay/widget";
+
+const payment = await kwespay({
+  apiKey: "YOUR_API_KEY",
+  amount: 49.99,
+  currency: "USD",
+  orderId: "A-1042",
+});
+
+await fetch("/api/orders/A-1042/paid", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ reference: payment.transactionReference }),
+});
+```
+
+Your server then calls `verifyPayment` with that reference. See [Payment confirmation](/guides/payment-confirmation/).
+
+For control over the widget's lifetime, use the class:
+
+```js
+import KwesPayWidget from "@kwespay/widget";
+
+const widget = new KwesPayWidget({ apiKey: "YOUR_API_KEY", amount: 49.99, currency: "USD" });
+try {
+  const payment = await widget.open();
+} finally {
+  widget.destroy();
+}
+```
+
+## Which build to load
+
+| Build | File | Use it for |
+| --- | --- | --- |
+| Browser module | `dist/browser/kwespay-widget.js` | Script tags. Loads about 31 kB gzipped up front and fetches wallet code only for the chain the customer picks |
+| npm module | `dist/esm/index.js` | Bundlers. Shares dependencies with the rest of your app |
+| Single file | `dist/kwespay-widget.min.js` | Pages that load classic scripts only |
+
+All three set `window.KwesPay` with `kwespay`, `KwesPayWidget` and `attemptMobileResume`. Pin the version in CDN URLs so a new release cannot change your checkout without a deploy.
+
+## Options
+
+| Option | Type | Required | Description |
+| --- | --- | --- | --- |
+| `apiKey` | `string` | Yes | API key from the dashboard |
+| `amount` | `number` | Yes | Price in fiat. Greater than 0 |
+| `currency` | `string` | No | ISO 4217 code such as `USD`, `GHS`, `NGN`, `KES` or `ZAR`. Default `USD` |
+| `orderId` | `string` | No | Your order ID, up to 128 printable characters. Lets `verifyPayment` confirm the payment belongs to this order |
+| `vendorId` | `string` | No | Only needed when the key can access more than one merchant |
+| `environment` | `"mainnet"` or `"testnet"` | No | Selects the KwesPay API. Default `mainnet` |
+| `acceptedTokens` | `string[]` or `"stablecoins"` | No | Limit the tokens shown |
+| `projectId` | `string` | No | Your WalletConnect project ID for mobile wallets |
+| `appName` | `string` | No | Name shown in wallet approval screens |
+| `onPaymentSuccess` | `(result) => void` | No | The transaction was broadcast. Not proof of payment |
+| `onPaymentConfirmed` | `(result) => void` | No | KwesPay recorded `completed` |
+| `onPaymentFinalised` | `(result) => void` | No | KwesPay reported any final status |
+| `onPaymentError` | `({ error, errorType }) => void` | No | A step failed. The customer can still retry |
+
+Networks and tokens are limited to what the merchant accepts and what the API key allows.
+
+## Result
+
+`kwespay()` and `widget.open()` resolve with:
+
+```ts
+{
+  transactionReference: string;
+  transactionHash: string;
+  paymentIdBytes32: string;
+  transactionStatus: "completed" | "underpaid" | "overpaid" | "failed" | "expired" | "refunded" | "unconfirmed";
+  fiatAmount: number;
+  currency: string;
+  token: string;
+  network: string;
+  orderId: string | null;
+}
+```
+
+The widget shows success only for `completed`. Other statuses get their own screen, for example "Less than the quoted amount arrived" for `underpaid`. `unconfirmed` means the customer closed the widget before KwesPay confirmed the payment. The payment may still complete, so check it with `verifyPayment` rather than cancelling the order.
+
+## Errors
+
+The promise rejects only when the customer closes the widget without a broadcast payment, or when `destroy()` is called. While the widget offers **Try again**, the promise stays pending, so a successful retry resolves it normally.
+
+| Code | Meaning |
+| --- | --- |
+| `USER_CANCELLED` | Closed without paying |
+| `USER_REJECTED` | The last attempt was rejected in the wallet |
+| `INSUFFICIENT_BALANCE` | The last attempt failed because the wallet could not cover the total |
+| `SESSION_EXPIRED` | A mobile wallet session timed out |
+| `WIDGET_DESTROYED` | `destroy()` was called during checkout |
+
+Other [SDK error codes](/sdk/errors/) can appear when they caused the last failure the customer saw.
+
+## Methods
+
+| Method | Description |
+| --- | --- |
+| `open()` | Opens the widget. Returns `Promise<PaymentResult>` |
+| `close()` | Closes the widget |
+| `destroy()` | Removes the widget and disconnects wallets |
+| `isOpen()` | `true` while the widget is visible |
+| `updateAmount(amount, currency?)` | Changes the amount between opens |
+
+## Browser events
+
+The widget dispatches `CustomEvent`s on `window`, prefixed with `kwespay:`. Use them for analytics and interface updates. They run in the customer's browser, so they are not proof of payment. Your server learns about payments from [webhooks](/guides/webhooks/).
+
+| Event | When |
+| --- | --- |
+| `kwespay:widgetOpened`, `kwespay:widgetClosed` | The widget opened or closed |
+| `kwespay:apiKeyValidated`, `kwespay:apiKeyInvalid`, `kwespay:apiKeyError` | The API key was accepted, rejected or could not be checked |
+| `kwespay:walletConnected`, `kwespay:walletConnectionError` | Wallet connection result |
+| `kwespay:paymentSuccess` | The transaction was broadcast |
+| `kwespay:paymentFinalised` | KwesPay reported a final status. Check `detail.transactionStatus` |
+| `kwespay:paymentConfirmed` | KwesPay recorded `completed` |
+| `kwespay:paymentIncomplete` | KwesPay recorded a final status other than `completed` |
+| `kwespay:paymentUnconfirmed` | Confirmation polling stopped before a final status |
+| `kwespay:paymentError` | A step failed. `detail` has `error` and `errorType` |
+| `kwespay:paymentCancelled` | The customer backed out |
+| `kwespay:amountUpdated`, `kwespay:widgetDestroyed` | `updateAmount()` or `destroy()` ran |

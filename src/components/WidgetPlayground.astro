@@ -1,0 +1,366 @@
+---
+import { href } from '../lib/site';
+
+const sandbox = href('/widget-sandbox/index.html');
+---
+
+<section class="kp-play not-content" aria-labelledby="kp-play-title" data-kp-play data-sandbox={sandbox}>
+	<header class="kp-play-head">
+		<p class="kp-play-label">Interactive</p>
+		<h3 id="kp-play-title">Try the checkout</h3>
+		<p class="kp-play-note">
+			<code>@kwespay/widget</code> runs below against a simulated KwesPay API and a simulated
+			wallet. Prices, balances and hashes are placeholders, nothing is sent to a blockchain, and no funds move.
+		</p>
+	</header>
+
+	<form class="kp-play-controls" data-kp-play-form>
+		<label>
+			<span>Amount</span>
+			<input name="amount" type="number" min="1" step="0.01" value="120" inputmode="decimal" />
+		</label>
+		<label>
+			<span>Currency</span>
+			<select name="currency">
+				<option value="GHS" selected>GHS</option>
+				<option value="USD">USD</option>
+			</select>
+		</label>
+		<label>
+			<span>Tokens</span>
+			<select name="tokens">
+				<option value="all" selected>All</option>
+				<option value="stablecoins">Stablecoins</option>
+			</select>
+		</label>
+		<label>
+			<span>Scenario</span>
+			<select name="scenario">
+				<option value="success" selected>Payment completes</option>
+				<option value="insufficient">Wallet has too little</option>
+				<option value="underpaid">KwesPay records underpaid</option>
+			</select>
+		</label>
+		<button type="submit">Load checkout</button>
+	</form>
+
+	<div class="kp-play-stage">
+		<div class="kp-play-frame">
+			<iframe title="KwesPay checkout widget simulation" data-kp-play-frame hidden></iframe>
+			<p class="kp-play-loading" data-kp-play-loading hidden>Loading the checkout…</p>
+			<div class="kp-play-placeholder" data-kp-play-placeholder>
+				<p>Choose a scenario and select <strong>Load checkout</strong>. Then press <strong>Pay with crypto</strong>, pick a testnet network and token, and connect the <strong>KwesPay Test Wallet</strong>. Confirm or reject each wallet request to see how the widget responds.</p>
+			</div>
+		</div>
+		<div class="kp-play-log">
+			<div class="kp-play-log-head">
+				<p class="kp-play-label">What happened</p>
+				<button type="button" data-kp-play-clear>Clear</button>
+			</div>
+			<ol data-kp-play-log aria-live="polite"></ol>
+		</div>
+	</div>
+</section>
+
+<script>
+	const root = document.querySelector<HTMLElement>('[data-kp-play]');
+	if (root) {
+		const form = root.querySelector<HTMLFormElement>('[data-kp-play-form]')!;
+		const frame = root.querySelector<HTMLIFrameElement>('[data-kp-play-frame]')!;
+		const placeholder = root.querySelector<HTMLElement>('[data-kp-play-placeholder]')!;
+		const log = root.querySelector<HTMLOListElement>('[data-kp-play-log]')!;
+		const loading = root.querySelector<HTMLElement>('[data-kp-play-loading]')!;
+		const sandbox = root.dataset.sandbox!;
+		const KIND: Record<string, string> = {
+			api: 'API',
+			wallet: 'Wallet',
+			event: 'Event',
+			result: 'Result',
+			code: 'Code',
+			ready: 'Ready',
+		};
+
+		form.addEventListener('submit', (e) => {
+			e.preventDefault();
+			const data = new FormData(form);
+			const qs = new URLSearchParams({
+				amount: String(data.get('amount') || '120'),
+				currency: String(data.get('currency')),
+				tokens: String(data.get('tokens')),
+				scenario: String(data.get('scenario')),
+			});
+			log.innerHTML = '';
+			frame.src = `${sandbox}?${qs}`;
+			frame.hidden = false;
+			placeholder.hidden = true;
+			loading.hidden = false;
+		});
+
+		root.querySelector('[data-kp-play-clear]')?.addEventListener('click', () => {
+			log.innerHTML = '';
+		});
+
+		window.addEventListener('message', (e) => {
+			if (e.origin !== location.origin || e.source !== frame.contentWindow) return;
+			const msg = e.data;
+			if (!msg || msg.source !== 'kwespay-sandbox') return;
+			if (msg.kind === 'ready') loading.hidden = true;
+			const li = document.createElement('li');
+			li.dataset.kind = msg.kind;
+			const tag = document.createElement('span');
+			tag.className = 'kp-play-kind';
+			tag.textContent = KIND[msg.kind] ?? msg.kind;
+			const details = document.createElement('details');
+			const summary = document.createElement('summary');
+			summary.textContent = msg.label;
+			const pre = document.createElement('pre');
+			pre.textContent = JSON.stringify(msg.detail, null, 2);
+			details.append(summary, pre);
+			li.append(tag, details);
+			log.append(li);
+			log.scrollTop = log.scrollHeight;
+		});
+	}
+</script>
+
+<style>
+	.kp-play {
+		margin-block: 2rem;
+		border-top: 1px solid var(--kp-ink);
+		padding-top: 1rem;
+	}
+
+	.kp-play-label {
+		margin: 0;
+		font-family: var(--kp-font-mono);
+		font-size: 0.6875rem;
+		font-weight: 600;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--kp-accent-ink);
+	}
+
+	.kp-play-head h3 {
+		margin: 0.375rem 0 0;
+		font-size: 1.1875rem;
+		font-weight: 650;
+		color: var(--kp-ink);
+	}
+
+	.kp-play-note {
+		margin: 0.5rem 0 0;
+		font-size: 0.9375rem;
+		line-height: 1.6;
+		color: var(--kp-muted);
+	}
+
+	.kp-play-note code {
+		font-family: var(--kp-font-mono);
+		font-size: 0.84em;
+		color: var(--kp-ink);
+	}
+
+	.kp-play-controls {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.75rem 1rem;
+		margin-top: 1.25rem;
+		align-items: end;
+	}
+
+	@media (min-width: 40rem) {
+		.kp-play-controls {
+			grid-template-columns: 7rem 6rem 8rem minmax(0, 1fr) auto;
+		}
+	}
+
+	.kp-play-controls label {
+		display: grid;
+		gap: 0.25rem;
+		min-width: 0;
+	}
+
+	.kp-play-controls span {
+		font-family: var(--kp-font-mono);
+		font-size: 0.6875rem;
+		font-weight: 600;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--kp-muted);
+	}
+
+	.kp-play-controls :is(input, select) {
+		width: 100%;
+		height: 2.25rem;
+		padding: 0 0.5rem;
+		border: 1px solid var(--kp-rule-strong);
+		border-radius: 2px;
+		background: var(--kp-raised);
+		color: var(--kp-ink);
+		font: inherit;
+		font-size: 0.875rem;
+	}
+
+	.kp-play-controls button {
+		height: 2.25rem;
+		padding: 0 1rem;
+		border: 1px solid var(--kp-ink);
+		border-radius: 2px;
+		background: var(--kp-ink);
+		color: var(--kp-paper);
+		font: inherit;
+		font-size: 0.875rem;
+		font-weight: 600;
+		cursor: pointer;
+		grid-column: 1 / -1;
+	}
+
+	@media (min-width: 40rem) {
+		.kp-play-controls button {
+			grid-column: auto;
+		}
+	}
+
+	.kp-play-stage {
+		display: grid;
+		gap: 1rem;
+		margin-top: 1rem;
+	}
+
+	.kp-play-frame {
+		position: relative;
+		border: 1px solid var(--kp-rule-strong);
+		background: #faf9f6;
+		min-height: 22rem;
+	}
+
+	.kp-play-loading {
+		position: absolute;
+		inset: 0;
+		display: grid;
+		place-items: center;
+		margin: 0;
+		background: #faf9f6;
+		font-family: var(--kp-font-mono);
+		font-size: 0.75rem;
+		letter-spacing: 0.04em;
+		color: #6b6861;
+	}
+
+	.kp-play-frame iframe {
+		display: block;
+		width: 100%;
+		height: 680px;
+		border: 0;
+	}
+
+	.kp-play-frame [hidden] {
+		display: none;
+	}
+
+	.kp-play-placeholder {
+		display: grid;
+		place-items: center;
+		min-height: 22rem;
+		padding: 1.5rem;
+		background: var(--kp-wash);
+	}
+
+	.kp-play-placeholder p {
+		max-width: 28rem;
+		margin: 0;
+		font-size: 0.9375rem;
+		line-height: 1.6;
+		color: var(--kp-muted);
+	}
+
+	.kp-play-placeholder strong {
+		color: var(--kp-ink);
+	}
+
+	.kp-play-log {
+		border-top: 1px solid var(--kp-rule);
+	}
+
+	.kp-play-log-head {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 0.75rem 0 0.5rem;
+	}
+
+	.kp-play-log-head .kp-play-label {
+		color: var(--kp-muted);
+	}
+
+	.kp-play-log-head button {
+		background: none;
+		border: none;
+		padding: 0;
+		font-family: var(--kp-font-mono);
+		font-size: 0.6875rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--kp-muted);
+		cursor: pointer;
+	}
+
+	.kp-play-log ol {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		max-height: 20rem;
+		overflow-y: auto;
+		font-size: 0.8125rem;
+	}
+
+	.kp-play-log ol:empty::before {
+		content: 'API calls, wallet requests and widget events appear here.';
+		display: block;
+		padding: 0.75rem 0;
+		color: var(--kp-faint);
+	}
+
+	.kp-play-log :global(li) {
+		display: grid;
+		grid-template-columns: 4.5rem minmax(0, 1fr);
+		gap: 0.75rem;
+		padding: 0.4rem 0;
+		border-bottom: 1px solid var(--kp-rule);
+	}
+
+	.kp-play-log :global(.kp-play-kind) {
+		font-family: var(--kp-font-mono);
+		font-size: 0.6875rem;
+		font-weight: 600;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		color: var(--kp-muted);
+		padding-top: 0.15rem;
+	}
+
+	.kp-play-log :global(li[data-kind='api'] .kp-play-kind),
+	.kp-play-log :global(li[data-kind='result'] .kp-play-kind) {
+		color: var(--kp-accent-ink);
+	}
+
+	.kp-play-log :global(summary) {
+		cursor: pointer;
+		font-family: var(--kp-font-mono);
+		color: var(--kp-ink);
+		overflow-wrap: anywhere;
+	}
+
+	.kp-play-log :global(pre) {
+		margin: 0.5rem 0 0.25rem;
+		padding: 0.625rem;
+		max-height: 14rem;
+		overflow: auto;
+		background: var(--kp-code-bg);
+		border: 1px solid var(--kp-rule);
+		font-family: var(--kp-font-mono);
+		font-size: 0.75rem;
+		line-height: 1.55;
+		color: var(--kp-ink-2);
+	}
+</style>

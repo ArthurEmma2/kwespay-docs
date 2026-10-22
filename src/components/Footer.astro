@@ -1,0 +1,41 @@
+---
+import Default from '@astrojs/starlight/components/Footer.astro';
+---
+
+<Default><slot /></Default>
+<p class="kp-colophon">
+	<span>KwesPay developer documentation</span>
+	<a href="https://www.kwespay.xyz">kwespay.xyz</a>
+	<a href="https://github.com/Kwespay">GitHub</a>
+	<a href="https://x.com/kwespay">X</a>
+	<a href="mailto:arthur@kwespay.xyz">Contact</a>
+</p>
+
+<style>
+	.kp-colophon {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem 1.5rem;
+		margin-top: 4rem;
+		padding-top: 1.25rem;
+		border-top: 1px solid var(--kp-rule);
+		font-family: var(--kp-font-mono);
+		font-size: 0.6875rem;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		color: var(--kp-faint);
+	}
+
+	.kp-colophon span {
+		margin-inline-end: auto;
+	}
+
+	.kp-colophon a {
+		color: var(--kp-muted);
+		text-decoration: none;
+	}
+
+	.kp-colophon a:hover {
+		color: var(--kp-ink);
+	}
+</style>

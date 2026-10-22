@@ -1,0 +1,113 @@
+---
+title: Quickstart
+description: Accept a KwesPay payment with one script tag, then confirm it on your server with one call. Test it end to end on testnet.
+sidebar:
+  order: 1
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Adding KwesPay takes two pieces: a button that opens checkout, and one call on your server that tells you whether an order is paid. KwesPay handles wallets, networks, tokens, pricing, fees and on-chain confirmation.
+
+**You will need** a merchant on the [testnet dashboard](https://app.testnet.kwespay.xyz) with an API key, at least one network enabled and a receiving wallet for it. [Environment setup](/getting-started/environment-setup/) walks through this.
+
+## 1. Add checkout to your page
+
+<Tabs syncKey="embed">
+<TabItem label="HTML embed">
+
+```html
+<script
+  type="module"
+  src="https://cdn.jsdelivr.net/npm/@kwespay/widget@1.1.0/dist/browser/kwespay-widget.js"
+  data-kwespay-key="YOUR_TESTNET_API_KEY"
+  data-kwespay-environment="testnet"
+></script>
+
+<button data-kwespay-amount="120" data-kwespay-currency="GHS" data-kwespay-order="1042">
+  Pay with crypto
+</button>
+```
+
+Copy the API key from **API Keys** in your dashboard into `data-kwespay-key`. Any element with `data-kwespay-amount` opens checkout when clicked. The customer stays on your page, and the button fires a `kwespay:result` event with the payment's `transactionReference` when checkout finishes.
+
+</TabItem>
+<TabItem label="JavaScript">
+
+```sh
+npm install @kwespay/widget
+```
+
+```js
+import { kwespay } from "@kwespay/widget";
+
+const payment = await kwespay({
+  apiKey: "YOUR_TESTNET_API_KEY",
+  environment: "testnet",
+  amount: 120,
+  currency: "GHS",
+  orderId: "1042",
+});
+```
+
+`payment.transactionReference` identifies the payment. Send it to your server with the order.
+
+</TabItem>
+</Tabs>
+
+The customer picks a network and token from what you accept, connects a wallet and pays. You do not need a vendor ID when your API key belongs to one merchant.
+
+## 2. Confirm the order on your server
+
+A browser can be edited by anyone, so let your server ask KwesPay before you ship anything.
+
+```sh
+npm install @kwespay/client
+```
+
+```ts title="server.ts"
+import { KwesPayClient } from "@kwespay/client";
+
+const kwespay = new KwesPayClient({
+  apiKey: process.env.KWESPAY_API_KEY!,
+  graphqlEndpoint: "https://api.testnet.kwespay.xyz/graphql",
+});
+
+const check = await kwespay.verifyPayment(reference, {
+  orderId: order.id,
+  amount: order.total,
+  currency: order.currency,
+});
+
+if (check.paid) await markOrderPaid(order.id, reference);
+```
+
+`paid` is `true` only when KwesPay has confirmed the payment on-chain, the payment was made for this order, and it was priced at this amount and currency. Otherwise `reason` says why, for example "The payment has not been confirmed on-chain yet." Any server language can make the same check with one [`verifyPayment`](/api/operations/verify-payment/) request.
+
+To be told about payments without waiting for the browser, add a [webhook endpoint](/guides/webhooks/). KwesPay then calls your server for every settled payment, even if the customer closed the page.
+
+No server? Every payment also appears in the dashboard, so you can fulfil orders from there.
+
+## 3. Test a payment
+
+<Steps>
+
+1. Get test funds from the [testnet console](https://console.kwespay.xyz). It funds Stellar wallets with XLM and USDC and mints test USDT on the EVM testnets.
+
+2. Open your page, press the button and pay from a testnet wallet.
+
+3. Call `verifyPayment` with the reference. It returns `paid: true` once the payment is confirmed, usually within seconds.
+
+4. Find the same reference in the [testnet dashboard](https://app.testnet.kwespay.xyz) and the transaction hash in the network's block explorer.
+
+</Steps>
+
+## Go live
+
+Switch to a mainnet API key, remove `environment: "testnet"` and the testnet `graphqlEndpoint`, then work through the [production checklist](/getting-started/production-checklist/).
+
+## Next steps
+
+- [Checkout widget](/guides/checkout-widget/) for every option, event and result field.
+- [Payment confirmation](/guides/payment-confirmation/) for what `verifyPayment` checks and how to handle partial payments.
+- [JavaScript SDK](/guides/javascript-sdk/) to build your own checkout interface with `checkout()`.

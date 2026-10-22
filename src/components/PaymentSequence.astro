@@ -1,0 +1,144 @@
+---
+const lanes = [
+	{ x: 90, label: 'Your app', sub: 'widget or SDK' },
+	{ x: 290, label: 'KwesPay API', sub: 'pricing, signing, listeners' },
+	{ x: 490, label: 'Customer wallet', sub: 'signs and submits' },
+	{ x: 690, label: 'Payment contract', sub: 'EVM, Sui or Stellar' },
+];
+
+type Msg = { from: number; to: number; text: string; dashed?: boolean; self?: boolean };
+
+const messages: Msg[] = [
+	{ from: 0, to: 1, text: 'createQuote(vendor, fiat, token, network)' },
+	{ from: 1, to: 0, text: 'quoteId, amountBaseUnits, totalBaseUnits', dashed: true },
+	{ from: 0, to: 1, text: 'createTransaction(quoteId, payer)' },
+	{ from: 1, to: 0, text: 'paymentId, backendSignature, deadline', dashed: true },
+	{ from: 0, to: 2, text: 'request approval and payment' },
+	{ from: 2, to: 3, text: 'create payment with signed params' },
+	{ from: 3, to: 3, text: 'verify signature, pay merchant and fee', self: true },
+	{ from: 0, to: 1, text: 'submitTransactionHash(reference, hash)' },
+	{ from: 3, to: 1, text: 'payment event read by listener', dashed: true },
+	{ from: 0, to: 1, text: 'getTransactionStatus(reference)' },
+	{ from: 1, to: 0, text: 'completed, underpaid or overpaid', dashed: true },
+];
+
+const top = 78;
+const row = 40;
+const height = top + messages.length * row + 24;
+---
+
+<figure class="kp-figure kp-seq">
+	<div class="kp-seq-scroll" tabindex="0" role="group" aria-label="Payment sequence diagram, scrollable">
+		<svg viewBox={`0 0 780 ${height}`} role="img" aria-labelledby="kp-seq-title kp-seq-desc">
+			<title id="kp-seq-title">KwesPay payment sequence</title>
+			<desc id="kp-seq-desc">
+				Your app requests a quote and a signed transaction from the KwesPay API, the customer wallet submits the
+				payment to the contract, the contract verifies the backend signature and pays the merchant, and the KwesPay
+				API records the final status from the on-chain event.
+			</desc>
+			<defs>
+				<marker id="kp-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+					<path d="M0 0 L8 4 L0 8 z" class="kp-seq-head"></path>
+				</marker>
+			</defs>
+			{
+				lanes.map((l) => (
+					<g>
+						<text x={l.x} y="22" text-anchor="middle" class="kp-seq-lane">{l.label}</text>
+						<text x={l.x} y="40" text-anchor="middle" class="kp-seq-sub">{l.sub}</text>
+						<line x1={l.x} y1="54" x2={l.x} y2={height - 8} class="kp-seq-life" />
+					</g>
+				))
+			}
+			{
+				messages.map((m, i) => {
+					const y = top + i * row;
+					const x1 = lanes[m.from].x;
+					const x2 = lanes[m.to].x;
+					if (m.self) {
+						return (
+							<g>
+								<path d={`M${x1} ${y - 6} h34 v14 h-30`} class="kp-seq-msg" marker-end="url(#kp-arrow)" fill="none" />
+								<text x={x1 - 10} y={y - 12} text-anchor="end" class="kp-seq-text">{m.text}</text>
+								<text x={18} y={y + 4} class="kp-seq-num">{String(i + 1).padStart(2, '0')}</text>
+							</g>
+						);
+					}
+					const dir = x2 > x1 ? 1 : -1;
+					const mid = (x1 + x2) / 2;
+					return (
+						<g>
+							<line x1={x1} y1={y} x2={x2 - dir * 3} y2={y} class:list={['kp-seq-msg', { 'kp-seq-dashed': m.dashed }]} marker-end="url(#kp-arrow)" />
+							<text x={mid} y={y - 7} text-anchor="middle" class="kp-seq-text">{m.text}</text>
+							<text x={18} y={y + 4} class="kp-seq-num">{String(i + 1).padStart(2, '0')}</text>
+						</g>
+					);
+				})
+			}
+		</svg>
+	</div>
+	<figcaption>
+		Solid lines are requests, dashed lines are responses or events. Steps 08 and 09 race: whichever arrives first lets the
+		backend confirm the payment.
+	</figcaption>
+</figure>
+
+<style>
+	.kp-seq-scroll {
+		overflow-x: auto;
+		border-top: 1px solid var(--kp-ink);
+		border-bottom: 1px solid var(--kp-rule);
+		padding: 1rem 0 0.5rem;
+	}
+
+	.kp-seq svg {
+		display: block;
+		width: 100%;
+		min-width: 680px;
+		height: auto;
+		font-family: var(--kp-font-sans);
+	}
+
+	.kp-seq-lane {
+		fill: var(--kp-ink);
+		font-size: 13px;
+		font-weight: 650;
+	}
+
+	.kp-seq-sub {
+		fill: var(--kp-muted);
+		font-size: 11px;
+	}
+
+	.kp-seq-life {
+		stroke: var(--kp-rule-strong);
+		stroke-width: 1;
+	}
+
+	.kp-seq-msg {
+		stroke: var(--kp-ink-2);
+		stroke-width: 1.25;
+	}
+
+	.kp-seq-dashed {
+		stroke: var(--kp-muted);
+		stroke-dasharray: 4 3;
+	}
+
+	.kp-seq-head {
+		fill: var(--kp-ink-2);
+	}
+
+	.kp-seq-text {
+		fill: var(--kp-ink-2);
+		font-family: var(--kp-font-mono);
+		font-size: 10.5px;
+	}
+
+	.kp-seq-num {
+		fill: var(--kp-accent-ink);
+		font-family: var(--kp-font-mono);
+		font-size: 10px;
+		font-weight: 600;
+	}
+</style>

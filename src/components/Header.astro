@@ -1,0 +1,159 @@
+---
+import Search from '@astrojs/starlight/components/Search.astro';
+import SiteTitle from '@astrojs/starlight/components/SiteTitle.astro';
+import SocialIcons from '@astrojs/starlight/components/SocialIcons.astro';
+import ThemeSelect from '@astrojs/starlight/components/ThemeSelect.astro';
+import ClaudeMark from './ClaudeMark.astro';
+import { askClaudeAboutDocs, askClaudeAboutPage } from '../lib/llms';
+
+const route = Astro.locals.starlightRoute;
+const onDocsPage = !['', 'index', '404'].includes(route.id);
+const askClaude = onDocsPage ? askClaudeAboutPage(route.entry.data.title, route.id) : askClaudeAboutDocs();
+
+const resources = [
+	{ label: 'Dashboard', href: 'https://app.kwespay.xyz' },
+	{ label: 'Testnet console', href: 'https://console.kwespay.xyz' },
+];
+---
+
+<div class="header">
+	<div class="title-wrapper sl-flex">
+		<SiteTitle />
+		<span class="kp-docs-tag" aria-hidden="true">Docs</span>
+	</div>
+	<div class="sl-flex print:hidden">
+		<Search />
+	</div>
+	<div class="sl-hidden md:sl-flex print:hidden right-group">
+		<a
+			class="kp-ask-claude"
+			href={askClaude}
+			target="_blank"
+			rel="noopener noreferrer"
+			title={onDocsPage ? 'Open Claude with this page loaded' : 'Open Claude with these docs loaded'}
+		>
+			<ClaudeMark size={15} />
+			<span>Ask Claude</span>
+			<span class="sr-only"> (opens claude.ai in a new tab)</span>
+		</a>
+		<nav class="kp-resources" aria-label="Developer resources">
+			{resources.map((r) => <a href={r.href}>{r.label}</a>)}
+		</nav>
+		<div class="sl-flex social-icons">
+			<SocialIcons />
+		</div>
+		<ThemeSelect />
+	</div>
+</div>
+
+<style>
+	.header {
+		display: flex;
+		gap: var(--sl-nav-gap);
+		justify-content: space-between;
+		align-items: center;
+		height: 100%;
+	}
+
+	.title-wrapper {
+		overflow: clip;
+		padding: 0.25rem;
+		margin: -0.25rem;
+		min-width: 0;
+		align-items: center;
+		gap: 0.625rem;
+	}
+
+	.kp-docs-tag {
+		font-family: var(--kp-font-mono);
+		font-size: 0.6875rem;
+		font-weight: 600;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--kp-muted);
+		padding-inline-start: 0.625rem;
+		border-inline-start: 1px solid var(--kp-rule-strong);
+		line-height: 1.1rem;
+	}
+
+	.right-group {
+		gap: 1.25rem;
+		align-items: center;
+	}
+
+	.kp-resources {
+		display: flex;
+		gap: 1.25rem;
+	}
+
+	.kp-resources a {
+		font-size: 0.8125rem;
+		font-weight: 500;
+		color: var(--kp-muted);
+		text-decoration: none;
+	}
+
+	.kp-resources a:hover {
+		color: var(--kp-ink);
+	}
+
+	.kp-ask-claude {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4375rem;
+		padding: 0.3125rem 0.625rem;
+		font-size: 0.8125rem;
+		font-weight: 550;
+		color: var(--kp-ink);
+		text-decoration: none;
+		border: 1px solid var(--kp-rule-strong);
+		border-radius: 2px;
+		white-space: nowrap;
+	}
+
+	.kp-ask-claude:hover {
+		background: var(--kp-wash);
+	}
+
+	.social-icons {
+		gap: 1rem;
+		align-items: center;
+	}
+
+	.social-icons::after {
+		content: '';
+		height: 1.25rem;
+		border-inline-end: 1px solid var(--kp-rule-strong);
+	}
+
+	@media (max-width: 72rem) {
+		.kp-resources {
+			display: none;
+		}
+	}
+
+	@media (min-width: 50rem) {
+		:global(:root[data-has-sidebar]) {
+			--__sidebar-pad: calc(2 * var(--sl-nav-pad-x));
+		}
+		:global(:root:not([data-has-toc])) {
+			--__toc-width: 0rem;
+		}
+		.header {
+			--__sidebar-width: max(0rem, var(--sl-content-inline-start, 0rem) - var(--sl-nav-pad-x));
+			--__main-column-fr: calc(
+				(
+						100% + var(--__sidebar-pad, 0rem) - var(--__toc-width, var(--sl-sidebar-width)) -
+							(2 * var(--__toc-width, var(--sl-nav-pad-x))) - var(--sl-content-inline-start, 0rem) -
+							var(--sl-content-width)
+					) / 2
+			);
+			display: grid;
+			grid-template-columns:
+				minmax(calc(var(--__sidebar-width) + max(0rem, var(--__main-column-fr) - var(--sl-nav-gap))), auto)
+				1fr
+				auto;
+			align-content: center;
+		}
+	}
+</style>
