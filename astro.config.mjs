@@ -32,7 +32,7 @@ export default defineConfig({
 		starlight({
 			title: 'KwesPay Docs',
 			description:
-				'Developer documentation for KwesPay: accept crypto, price in fiat. Checkout widget, JavaScript SDK, GraphQL API and payment contracts on EVM, Sui and Stellar.',
+				'Developer documentation for KwesPay: accept crypto, price in fiat. Checkout widget, JavaScript SDK, GraphQL API and payment contracts on EVM, Sui, Stellar and NEAR.',
 			logo: {
 				light: './src/assets/wordmark-ink.png',
 				dark: './src/assets/wordmark-paper.png',

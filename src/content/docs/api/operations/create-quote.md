@@ -47,7 +47,7 @@ The API key must authorise the merchant, network and token. The merchant must be
 | `totalBaseUnits` | `String` | Amount the customer pays, including the platform fee |
 | `displayAmount` | `Float` | `amountBaseUnits` in whole tokens |
 | `network` | `String` | Network key |
-| `chainId` | `Int` | EVM chain ID. `0` for Sui and Stellar |
+| `chainId` | `Int` | EVM chain ID. `0` for Sui, Stellar and NEAR |
 | `expiresAt` | `String` | Expiry, ISO 8601 in UTC |
 | `usdPriceSnapshot` | `Float` | USD price of the token used for the quote |
 

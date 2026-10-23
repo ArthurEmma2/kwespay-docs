@@ -1,6 +1,6 @@
 ---
 title: Client configuration
-description: Options for the KwesPayClient constructor, including the API key, the GraphQL endpoint and overrides for Sui and Stellar contract configuration.
+description: Options for the KwesPayClient constructor, including the API key, the GraphQL endpoint and overrides for Sui, Stellar and NEAR contract configuration.
 sidebar:
   order: 2
 ---

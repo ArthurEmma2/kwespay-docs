@@ -40,7 +40,7 @@ The input type also declares `vendorIdentifier`, `transactionAmount`, `cryptoCur
 | `tokenAddress` | `String` | Token identifier |
 | `amountBaseUnits` | `String` | Amount the merchant receives |
 | `totalBaseUnits` | `String` | Amount the customer pays |
-| `chainId` | `Int` | EVM chain ID. `0` for Sui and Stellar |
+| `chainId` | `Int` | EVM chain ID. `0` for Sui, Stellar and NEAR |
 | `deadline` | `Int` | Signature deadline. Unix seconds on EVM and Sui, a **ledger sequence** on Stellar |
 | `expiresAt` | `String` | Transaction expiry, ISO 8601 in UTC |
 | `contractAddress` | `String` | Contract the terms were signed for: EVM address, Sui package ID or Stellar contract ID |

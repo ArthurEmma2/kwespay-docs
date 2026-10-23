@@ -15,7 +15,7 @@ pnpm add @kwespay/client
 
 ## Versions
 
-This site documents `@kwespay/client` 0.1.27 and later: EVM, Sui and Stellar payments, `checkout()`, `verifyPayment()` and a configurable `graphqlEndpoint`. Check what npm serves with `npm view @kwespay/client version`.
+This site documents `@kwespay/client` 0.1.27 and later: EVM, Sui and Stellar payments, `checkout()`, `verifyPayment()` and a configurable `graphqlEndpoint`. NEAR payments, `getNetworks()` and `verifyWebhook()` need 0.1.28. Check what npm serves with `npm view @kwespay/client version`.
 
 ## Requirements
 
@@ -40,4 +40,4 @@ The package includes a single-file build that exposes a global `KwesPay`:
 </script>
 ```
 
-The browser bundle supports EVM payments only. Sui and Stellar need a bundler that can resolve their npm packages. Pin the version in the URL.
+The browser bundle supports EVM payments only. Sui, Stellar and NEAR need a bundler that can resolve their npm packages. Pin the version in the URL.
